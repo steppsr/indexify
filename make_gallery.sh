@@ -276,9 +276,9 @@ cat <<EOF > "$output_html"
 	<script>
         document.addEventListener('DOMContentLoaded', function () {
             // Function to make API call and update HTML
-            function fetchDataAndRender() {
+            function fetchCollectionDataAndRender() {
                 const apiUrl = 'https://api.mintgarden.io/collections/$collection_id';
-
+console.log('fetchCollectionDataAndRender ' + apiUrl);
                 // Make the API call
                 fetch(apiUrl)
                     .then(response => response.json())
@@ -294,8 +294,10 @@ cat <<EOF > "$output_html"
                         // Update HTML with the values
 						if (volume == null) {
 							document.getElementById('volumeValue').innerText = '';
+console.log('volumeValue: null');
 						} else {
 	                        document.getElementById('volumeValue').innerText = volume.toFixed(2);
+console.log('volumeValue: not null');
 						}
 						if (tradeCount == null) {
 							document.getElementById('tradeCountValue').innerText = '';
@@ -327,8 +329,62 @@ cat <<EOF > "$output_html"
             }
 
             // Call the function when the DOM is loaded
-            fetchDataAndRender();
+            fetchCollectionDataAndRender();
         });
+
+		function fetchNFTDataAndRender(nftId) {
+			const apiUrl = 'https://api.mintgarden.io/nfts/' + nftId;
+console.log('fetchNFTDataAndRender ' + apiUrl);
+			fetch(apiUrl)
+				.then(response => response.json())
+				.then(data => {
+					const ownerName = data.owner.name;
+					const ownerDID = data.owner.encoded_id;
+					const ownerWallet = data.owner_address.encoded_id;
+					const xchPrice = data.xch_price;
+					if (ownerName == null) {
+						document.getElementById(nftId + '_owner_name').innerText = '';
+					} else {
+						document.getElementById(nftId + '_owner_name').innerText = ownerName;
+					}
+					if (ownerDID == null) {
+						document.getElementById(nftId + '_owner_did').innerText = '';
+					} else {
+						document.getElementById(nftId + '_owner_did').innerText = ownerDID;
+					}
+					if (ownerWallet == null) {
+						document.getElementById(nftId + '_owner_address').innerText = '';
+					} else {
+						document.getElementById(nftId + '_owner_address').innerText = ownerWallet;
+					}
+					if (xchPrice == null) {
+						document.getElementById(nftId + '_xch_price').innerText = '';
+					} else {
+						document.getElementById(nftId + '_xch_price').innerText = xchPrice;
+					}
+				})
+				.catch(error => console.error('Error fetching data:', error));
+		}
+
+		function copyElementToClipboard(nftId) {
+console.log('copyElementToClipboard ' + nftId);
+			var textToCopyElement = document.getElementById(nftId);
+			var titleToCopy = textToCopyElement.getAttribute('title');
+			var originalText = textToCopyElement.innerText || textToCopyElement.textContent;
+			var textarea = document.createElement('textarea');
+			textarea.value = titleToCopy;
+			document.body.appendChild(textarea);
+			textarea.select();
+			document.execCommand('copy');
+			document.body.removeChild(textarea);
+			textToCopyElement.classList.add('copied');
+			textToCopyElement.textContent = 'Copied!';
+			setTimeout(function () {
+				textToCopyElement.classList.remove('copied');
+				textToCopyElement.textContent = originalText;
+			}, 2000);
+		}
+
    </script>
 </head>
 <body>
@@ -430,7 +486,7 @@ for item in $md_list; do
 		full_path="$working_folder/images/${imgfilename}.${ext}"
 		if [ -e "$full_path" ]; then
 			# ---- NFT DETAILS ----
-			detail_html="$detail_html<tr><td colspan=2 class='nftid'><span class='nftid_icon' id='nft_id_$c' title='$nft_id'>🆔</span> <span id='nft_description'>$nft_description</span></td></tr>"
+			detail_html="$detail_html<tr><td colspan=2 class='nftid'><span class='nftid_icon' id='$nft_id' title='$nft_id'>🆔</span> <span id='nft_description'>$nft_description</span></td></tr>"
 			detail_html="$detail_html<tr><td colspan=2 class='minted_at'>Minted: $minted_at</td></tr>"
 
 			detail_html="$detail_html<tr><td colspan=2><hr></td></tr>"
@@ -444,8 +500,8 @@ for item in $md_list; do
 			detail_html="$detail_html<tr><td class='nft'>Open Rarity:</td><td id='open_rarity_rank'>$open_rarity_rank</td></tr>"
 
 			detail_html="$detail_html<tr><td colspan=2><hr></td></tr>"
-			detail_html="$detail_html<tr><td colspan=2 class='nft'>Owner: <span id='owner_name' title='$owner_name'>$owner_name</span> <span class='owner_did' id='owner_did_$c' title='$owner_did'>📛 </span> <span class='owner_address' id='owner_address_$c' title='$owner_address'>💼 </span></td></tr>"
-			detail_html="$detail_html<tr><td class='nft'>Price:</td><td class='nft' id='xch_price'>$xch_price</td></tr>"
+			detail_html="$detail_html<tr><td colspan=2 class='nft'>Owner: <span id='"$nft_id"_owner_name' title='$owner_name'>$owner_name</span> <span class='owner_did' id='"$nft_id"_owner_did' title='$owner_did'>📛 </span> <span class='owner_address' id='"$nft_id"_owner_address' title='$owner_address'>💼 </span></td></tr>"
+			detail_html="$detail_html<tr><td class='nft'>Price:</td><td class='nft' id='"$nft_id"_xch_price'>$xch_price</td></tr>"
 
 			detail_html="$detail_html<tr><td colspan=2><hr></td></tr>"
 			detail_html="$detail_html<tr><td colspan=2 class='nft'><a href='images/$(basename $full_path)' target='_blank' title='Image File'>🖼️</a> <a href='metadata/$item' target='_blank' title='Metadata File'>Ⓜ️</a> <a href='$license_file' target='_blank' title='License File'>📜️</a></td></tr>"
@@ -455,48 +511,35 @@ for item in $md_list; do
 			echo "<p><table>$detail_html</table></p><legend>$nft_name</legend></fieldset>" >> "$output_html"
 
 			echo "<script>" >> "$output_html"
+			echo "document.addEventListener('DOMContentLoaded', fetchNFTDataAndRender('$nft_id'));" >> "$output_html"
+
 			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-			echo "	function fetchDataAndRender_$c() {" >> "$output_html"
-			echo "		const apiUrl = 'https://api.mintgarden.io/nfts/$nft_id';" >> "$output_html"
-			echo "		fetch(apiUrl)" >> "$output_html"
-			echo "			.then(response => response.json())" >> "$output_html"
-			echo "			.then(data => {" >> "$output_html"
-			echo "				const ownerName = .owner.name;" >> "$output_html"
-			echo "				const ownerDID = .owner.encoded_id;" >> "$output_html"
-			echo "				const ownerWallet = .owner_address.encoded_id;" >> "$output_html"
-			echo "				const nftPrice = .xch_price;" >> "$output_html"
-			echo "				if (ownerName == null) {" >> "$output_html"
-			echo "					document.getElementById('ownerName').innerText = '';" >> "$output_html"
-			echo "				} else {" >> "$output_html"
-			echo "					document.getElementById('ownerName').innerText = ownerName;" >> "$output_html"
-			echo "				}" >> "$output_html"
-			echo "				if (ownerDID == null) {" >> "$output_html"
-			echo "					document.getElementById('ownerDID').innerText = '';" >> "$output_html"
-			echo "				} else {" >> "$output_html"
-			echo "					document.getElementById('ownerDID').innerText = ownerDID;" >> "$output_html"
-			echo "				}" >> "$output_html"
-			echo "				if (ownerWallet == null) {" >> "$output_html"
-			echo "					document.getElementById('ownerWallet').innerText = '';" >> "$output_html"
-			echo "				} else {" >> "$output_html"
-			echo "					document.getElementById('ownerWallet').innerText = ownerWallet;" >> "$output_html"
-			echo "				}" >> "$output_html"
-			echo "				if (nftPrice == null) {" >> "$output_html"
-			echo "					document.getElementById('nftPrice').innerText = '';" >> "$output_html"
-			echo "				} else {" >> "$output_html"
-			echo "					document.getElementById('nftPrice').innerText = nftPrice;" >> "$output_html"
-			echo "				}" >> "$output_html"
-			echo "			})" >> "$output_html"
-			echo "			.catch(error => console.error('Error fetching data:', error));" >> "$output_html"
-			echo "	}" >> "$output_html"
-			echo "	fetchDataAndRender_$c();" >> "$output_html"
+			echo "	var textToCopyElement = document.getElementById('$nft_id');" >> "$output_html"
+			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('$nft_id')); " >> "$output_html"
 			echo "});" >> "$output_html"
+
+			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_did');" >> "$output_html"
+			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_did')); " >> "$output_html"
+			echo "});" >> "$output_html"
+
+			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_address');" >> "$output_html"
+			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_address')); " >> "$output_html"
+			echo "});" >> "$output_html"
+
+			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_name');" >> "$output_html"
+			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_name')); " >> "$output_html"
+			echo "});" >> "$output_html"
+
 			echo "</script>" >> "$output_html"
 
 			break
 		fi
 	done
 	echo "</div>" >> "$output_html"
-	
+
 	((c++))
 
 done
@@ -504,69 +547,8 @@ done
 # wrap up
 echo "    </div>" >> "$output_html"
 
-echo "<script>" >> "$output_html"
-for ((i=1; i<c; i++)); do
-	# Need to add a custom event listener for each NFT
-	echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-	echo "	var textToCopyElement = document.getElementById('nft_id_$i');" >> "$output_html"
-	echo "	textToCopyElement.addEventListener('click', function () {" >> "$output_html"
-	echo "		var titleToCopy = textToCopyElement.getAttribute('title');" >> "$output_html"
-	echo "		var originalText = textToCopyElement.innerText || textToCopyElement.textContent;" >> "$output_html"
-	echo "		var textarea = document.createElement('textarea');" >> "$output_html"
-	echo "		textarea.value = titleToCopy;" >> "$output_html"
-	echo "		document.body.appendChild(textarea);" >> "$output_html"
-	echo "		textarea.select();" >> "$output_html"
-	echo "		document.execCommand('copy');" >> "$output_html"
-	echo "		document.body.removeChild(textarea);" >> "$output_html"
-	echo "		textToCopyElement.classList.add('copied');" >> "$output_html"
-	echo "		textToCopyElement.textContent = 'Copied!';" >> "$output_html"
-	echo "		setTimeout(function () {" >> "$output_html"
-	echo "			textToCopyElement.classList.remove('copied');" >> "$output_html"
-	echo "			textToCopyElement.textContent = originalText;" >> "$output_html"
-	echo "		}, 2000);" >> "$output_html"
-	echo "	});" >> "$output_html"
-	echo "});" >> "$output_html"
-	echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-	echo "	var textToCopyElement = document.getElementById('owner_did_$i');" >> "$output_html"
-	echo "	textToCopyElement.addEventListener('click', function () {" >> "$output_html"
-	echo "		var titleToCopy = textToCopyElement.getAttribute('title');" >> "$output_html"
-	echo "		var originalText = textToCopyElement.innerText || textToCopyElement.textContent;" >> "$output_html"
-	echo "		var textarea = document.createElement('textarea');" >> "$output_html"
-	echo "		textarea.value = titleToCopy;" >> "$output_html"
-	echo "		document.body.appendChild(textarea);" >> "$output_html"
-	echo "		textarea.select();" >> "$output_html"
-	echo "		document.execCommand('copy');" >> "$output_html"
-	echo "		document.body.removeChild(textarea);" >> "$output_html"
-	echo "		textToCopyElement.classList.add('copied');" >> "$output_html"
-	echo "		textToCopyElement.textContent = 'Copied!';" >> "$output_html"
-	echo "		setTimeout(function () {" >> "$output_html"
-	echo "			textToCopyElement.classList.remove('copied');" >> "$output_html"
-	echo "			textToCopyElement.textContent = originalText;" >> "$output_html"
-	echo "		}, 2000);" >> "$output_html"
-	echo "	});" >> "$output_html"
-	echo "});" >> "$output_html"
-	echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-	echo "	var textToCopyElement = document.getElementById('owner_address_$i');" >> "$output_html"
-	echo "	textToCopyElement.addEventListener('click', function () {" >> "$output_html"
-	echo "		var titleToCopy = textToCopyElement.getAttribute('title');" >> "$output_html"
-	echo "		var originalText = textToCopyElement.innerText || textToCopyElement.textContent;" >> "$output_html"
-	echo "		var textarea = document.createElement('textarea');" >> "$output_html"
-	echo "		textarea.value = titleToCopy;" >> "$output_html"
-	echo "		document.body.appendChild(textarea);" >> "$output_html"
-	echo "		textarea.select();" >> "$output_html"
-	echo "		document.execCommand('copy');" >> "$output_html"
-	echo "		document.body.removeChild(textarea);" >> "$output_html"
-	echo "		textToCopyElement.classList.add('copied');" >> "$output_html"
-	echo "		textToCopyElement.textContent = 'Copied!';" >> "$output_html"
-	echo "		setTimeout(function () {" >> "$output_html"
-	echo "			textToCopyElement.classList.remove('copied');" >> "$output_html"
-	echo "			textToCopyElement.textContent = originalText;" >> "$output_html"
-	echo "		}, 2000);" >> "$output_html"
-	echo "	});" >> "$output_html"
-	echo "});" >> "$output_html"
-done
-
 cat <<EOF >> "$output_html"
+	<script>
 	document.addEventListener('DOMContentLoaded', function () {
 
 		var textToCopyElement = document.getElementById('creator_did');
