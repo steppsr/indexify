@@ -44,10 +44,10 @@ build
 
 # USAGE
 
-`bash make_gallery.sh <collection_name>/<build_folder>`
+`bash make_gallery.sh /path/to/<build_folder>`
 
 Real Example:
 
 ```
-bash make_gallery.sh BattleKats/build
+bash make_gallery.sh ./BattleKats/build
 ```
