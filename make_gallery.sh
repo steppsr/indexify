@@ -40,6 +40,8 @@
 
 # --------------------------------------
 
+date
+
 # check if build folder path is given as an argument
 if [ -z "$1" ]; then
 	echo "Usage: $0 <build_folder_path>"
@@ -111,6 +113,8 @@ first=$(echo $md_list | tr ' ' '\n' | head -n 1)
 metadata=$(jq . $build_folder/metadata/"$first")
 collection_name=$(echo $metadata | jq '.collection.name' | cut --fields 2 --delimiter=\")
 
+echo "Collection: $collection_name"
+
 # use collection name to pull collection id from Mintgarden. https://api.mintgarden.io/search?query="COLLECTION_NAME"
 # use collection id to pull collection data from Mintgarden. https://api.mintgarden.io/collections/col13c7w72dvywudk76fj79af77022r2vez6p65t6hmsj7vtrj5c6tcsz9mwkq
 # now lets get some extra collection info from the Mintgarden API
@@ -118,6 +122,8 @@ urlencoded_collection_name=$(echo -n "$collection_name" | jq -s -R -r @uri)
 search=$(curl -s https://api.mintgarden.io/search?query="$urlencoded_collection_name" | jq '.collections')
 collection_id=$(echo "$search" | jq -r --arg name "$collection_name" '.[] | select(.name == $name) | .id')
 mg_col_data=$(curl -s https://api.mintgarden.io/collections/$collection_id)
+
+echo "MG API collection call complete."
 
 creator_did=$(echo "$mg_col_data" | jq '.creator.encoded_id' | cut --fields 2 --delimiter=\" | sed 's/null//g')
 creator_name=$(echo "$mg_col_data" | jq '.creator.name' | cut --fields 2 --delimiter=\" | sed 's/null//g')
@@ -128,6 +134,8 @@ description=$(echo "$mg_col_data" | jq '.description' | cut --fields 2 --delimit
 
 # the did is too long to look good in the format so lets create a short version too
 creator_did_short="${creator_did:0:30}...${creator_did: -15}"
+
+echo "Starting HTML"
 
 cat <<EOF > "$output_html"
 <!DOCTYPE html>
@@ -272,13 +280,13 @@ cat <<EOF > "$output_html"
 		legend { font-weight: bold; }
 		bottompad { padding-bottom: 15px; }
 		nft_box { overflow: hidden; }
+		.burned { text-align: center; }
     </style>
 	<script>
         document.addEventListener('DOMContentLoaded', function () {
             // Function to make API call and update HTML
             function fetchCollectionDataAndRender() {
                 const apiUrl = 'https://api.mintgarden.io/collections/$collection_id';
-console.log('fetchCollectionDataAndRender ' + apiUrl);
                 // Make the API call
                 fetch(apiUrl)
                     .then(response => response.json())
@@ -294,10 +302,8 @@ console.log('fetchCollectionDataAndRender ' + apiUrl);
                         // Update HTML with the values
 						if (volume == null) {
 							document.getElementById('volumeValue').innerText = '';
-console.log('volumeValue: null');
 						} else {
 	                        document.getElementById('volumeValue').innerText = volume.toFixed(2);
-console.log('volumeValue: not null');
 						}
 						if (tradeCount == null) {
 							document.getElementById('tradeCountValue').innerText = '';
@@ -333,41 +339,56 @@ console.log('volumeValue: not null');
         });
 
 		function fetchNFTDataAndRender(nftId) {
+			if (!nftId) {
+				console.log("nftId is empty. Pleae provide a valid nftId.");
+				return;
+			}
+
 			const apiUrl = 'https://api.mintgarden.io/nfts/' + nftId;
-console.log('fetchNFTDataAndRender ' + apiUrl);
 			fetch(apiUrl)
 				.then(response => response.json())
 				.then(data => {
 					const ownerName = data.owner.name;
+					const xchPrice = data.xch_price;
 					const ownerDID = data.owner.encoded_id;
 					const ownerWallet = data.owner_address.encoded_id;
-					const xchPrice = data.xch_price;
+
+					const ownerNameElement = document.getElementById(nftId + '_owner_name');
+					const ownerDIDElement = document.getElementById(nftId + '_owner_did');
+					const ownerAddressElement = document.getElementById(nftId + '_owner_address');
+					const xchPriceElement = document.getElementById(nftId + '_xch_price');
+
 					if (ownerName == null) {
-						document.getElementById(nftId + '_owner_name').innerText = '';
+						ownerNameElement.innerText = '';
 					} else {
-						document.getElementById(nftId + '_owner_name').innerText = ownerName;
+						ownerNameElement.innerText = ownerName;
 					}
 					if (ownerDID == null) {
-						document.getElementById(nftId + '_owner_did').innerText = '';
+						ownerDIDElement.innerText = '';
 					} else {
-						document.getElementById(nftId + '_owner_did').innerText = ownerDID;
+						ownerDIDElement.title = ownerDID;
 					}
 					if (ownerWallet == null) {
-						document.getElementById(nftId + '_owner_address').innerText = '';
+						ownerAddressElement.innerText = '';
 					} else {
-						document.getElementById(nftId + '_owner_address').innerText = ownerWallet;
+						ownerAddressElement.title = ownerWallet;
 					}
 					if (xchPrice == null) {
-						document.getElementById(nftId + '_xch_price').innerText = '';
+						xchPriceElement.innerText = '';
 					} else {
-						document.getElementById(nftId + '_xch_price').innerText = xchPrice;
+						xchPriceElement.innerText = xchPrice;
 					}
 				})
 				.catch(error => console.error('Error fetching data:', error));
+			return;
 		}
 
-		function copyElementToClipboard(nftId) {
-console.log('copyElementToClipboard ' + nftId);
+		function copyElementToClipboard(nftId, ) {
+			if (!nftId) {
+				console.log("nftId is empty. Pleae provide a valid nftId.");
+				return;
+			}
+
 			var textToCopyElement = document.getElementById(nftId);
 			var titleToCopy = textToCopyElement.getAttribute('title');
 			var originalText = textToCopyElement.innerText || textToCopyElement.textContent;
@@ -383,6 +404,7 @@ console.log('copyElementToClipboard ' + nftId);
 				textToCopyElement.classList.remove('copied');
 				textToCopyElement.textContent = originalText;
 			}, 2000);
+			return;
 		}
 
    </script>
@@ -437,6 +459,8 @@ console.log('copyElementToClipboard ' + nftId);
 
 EOF
 
+echo "Getting all the NFTs from Mintgarden"
+
 # get a list of the NFTs from the Mintgarden API
 nft_list=$(curl -s https://api.mintgarden.io/collections/$collection_id/nfts/ids | jq -r '.[] | .encoded_id')
 mg_nfts_json=""
@@ -449,6 +473,12 @@ mg_nfts_json="[${mg_nfts_json%?}]"
 
 c=1
 for item in $md_list; do
+	echo -n "NFT $c: $item "
+
+	true=1
+	false=0
+
+	burned=$false
 	detail_html=""
 
 	# get data from the actual metadata file
@@ -471,6 +501,9 @@ for item in $md_list; do
 	# find the nftid from mintgarden
 	nft_data=$(echo "$mg_nfts_json" | jq -r --arg name "$nft_name" '.[] | select(.data.metadata_json.name == $name)')
 	nft_id=$(echo "$nft_data" | jq -r '.encoded_id')
+	if [ -z "$nft_id" ]; then
+		burned=$true
+	fi
 	open_rarity_rank=$(echo $nft_data | jq -r '.openrarity_rank' | sed 's/null//g')
 	xch_price=$(echo $nft_data | jq -r '.xch_price' | sed 's/null//g')
 	owner_address=$(echo $nft_data | jq -r '.owner_address.encoded_id' | sed 's/null//g')
@@ -500,40 +533,49 @@ for item in $md_list; do
 			detail_html="$detail_html<tr><td class='nft'>Open Rarity:</td><td id='open_rarity_rank'>$open_rarity_rank</td></tr>"
 
 			detail_html="$detail_html<tr><td colspan=2><hr></td></tr>"
-			detail_html="$detail_html<tr><td colspan=2 class='nft'>Owner: <span id='"$nft_id"_owner_name' title='$owner_name'>$owner_name</span> <span class='owner_did' id='"$nft_id"_owner_did' title='$owner_did'>📛 </span> <span class='owner_address' id='"$nft_id"_owner_address' title='$owner_address'>💼 </span></td></tr>"
+			detail_html="$detail_html<tr><td colspan=2 class='nft'>Owner: <span id='"$nft_id"_owner_name' title='$owner_name'>$owner_name</span> "
+			detail_html="$detail_html<span class='owner_did' id='"$nft_id"_owner_did' title='$owner_did'>📛 </span> "
+			detail_html="$detail_html<span class='owner_address' id='"$nft_id"_owner_address' title='$owner_address'>💼 </span></td></tr>"
 			detail_html="$detail_html<tr><td class='nft'>Price:</td><td class='nft' id='"$nft_id"_xch_price'>$xch_price</td></tr>"
 
 			detail_html="$detail_html<tr><td colspan=2><hr></td></tr>"
 			detail_html="$detail_html<tr><td colspan=2 class='nft'><a href='images/$(basename $full_path)' target='_blank' title='Image File'>🖼️</a> <a href='metadata/$item' target='_blank' title='Metadata File'>Ⓜ️</a> <a href='$license_file' target='_blank' title='License File'>📜️</a></td></tr>"
+			if [ "$burned" -eq "$true" ]; then
+				detail_html="$detail_html<tr><td colspan=2 class='burned'><hr>🔥🔥🔥Burned🔥🔥🔥</td></tr>"
+			fi
 
 			echo "<fieldset>" >> "$output_html"
 			echo "<a href='images/$(basename $full_path)' target='_blank'><img src='images/$(basename $full_path)' alt='$(basename $full_path)'></a>" >> "$output_html"
 			echo "<p><table>$detail_html</table></p><legend>$nft_name</legend></fieldset>" >> "$output_html"
 
-			echo "<script>" >> "$output_html"
-			echo "document.addEventListener('DOMContentLoaded', fetchNFTDataAndRender('$nft_id'));" >> "$output_html"
+			if [ "$burned" -ne "$true" ]; then
+				echo "<script>" >> "$output_html"
+				echo "document.addEventListener('DOMContentLoaded', fetchNFTDataAndRender('$nft_id'));" >> "$output_html"
 
-			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-			echo "	var textToCopyElement = document.getElementById('$nft_id');" >> "$output_html"
-			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('$nft_id')); " >> "$output_html"
-			echo "});" >> "$output_html"
+				echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+				echo "	var textToCopyElement = document.getElementById('$nft_id');" >> "$output_html"
+				echo "	textToCopyElement.addEventListener('click', function() { copyElementToClipboard('$nft_id');}); " >> "$output_html"
+				echo "});" >> "$output_html"
 
-			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_did');" >> "$output_html"
-			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_did')); " >> "$output_html"
-			echo "});" >> "$output_html"
+				echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+				echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_did');" >> "$output_html"
+				echo "	textToCopyElement.addEventListener('click', function() { copyElementToClipboard('"$nft_id"_owner_did');}); " >> "$output_html"
+				echo "});" >> "$output_html"
 
-			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_address');" >> "$output_html"
-			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_address')); " >> "$output_html"
-			echo "});" >> "$output_html"
+				echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+				echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_address');" >> "$output_html"
+				echo "	textToCopyElement.addEventListener('click', function() { copyElementToClipboard('"$nft_id"_owner_address');}); " >> "$output_html"
+				echo "});" >> "$output_html"
 
-			echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
-			echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_name');" >> "$output_html"
-			echo "	textToCopyElement.addEventListener('click', copyElementToClipboard('"$nft_id"_owner_name')); " >> "$output_html"
-			echo "});" >> "$output_html"
+				echo "document.addEventListener('DOMContentLoaded', function () {" >> "$output_html"
+				echo "	var textToCopyElement = document.getElementById('$nft_id' + '_owner_name');" >> "$output_html"
+				echo "	textToCopyElement.addEventListener('click', function() { copyElementToClipboard('"$nft_id"_owner_name');}); " >> "$output_html"
+				echo "});" >> "$output_html"
 
-			echo "</script>" >> "$output_html"
+				echo "</script>" >> "$output_html"
+			else
+				echo -n "🔥 BURNED 🔥"
+			fi
 
 			break
 		fi
@@ -542,6 +584,7 @@ for item in $md_list; do
 
 	((c++))
 
+	echo ""
 done
 
 # wrap up
@@ -608,3 +651,4 @@ echo "</body>" >> "$output_html"
 echo "</html>" >> "$output_html"
 echo "HMTL page generated: $output_html"
 
+date
