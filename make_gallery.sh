@@ -70,36 +70,36 @@ working_folder="${build_folder#./}"
 # get the icon file
 icon_files=("icon.png" "icon.jpg" "icon.gif")
 icon_file=""
-for file in "$working_folder/${icon_files[@]}"; do
-    if [ -e "$file" ]; then
-        icon_file=$(basename "$file")
+for file in "${icon_files[@]}"; do
+    if [ -e "$working_folder/$file" ]; then
+        icon_file=$(basename "$working_folder/$file")
         break  # Stop the loop once a file is found
     else
-        echo "$file does not exist."
+        echo "$working_folder/$file does not exist."
     fi
 done
 
 # get the banner file
 banner_files=("banner.png" "banner.jpg" "banner.gif")
 banner_file=""
-for file in "$working_folder/${banner_files[@]}"; do
-    if [ -e "$file" ]; then
-        banner_file=$(basename "$file")
+for file in "${banner_files[@]}"; do
+    if [ -e "$working_folder/$file" ]; then
+        banner_file=$(basename "$working_folder/$file")
         break  # Stop the loop once a file is found
     else
-        echo "$file does not exist."
+        echo "$working_folder/$file does not exist."
     fi
 done
 
 # get the license file
 license_files=("license.md" "license.pdf" "license.txt" "license.doc")
 license_file=""
-for file in "$working_folder/${license_files[@]}"; do
-    if [ -e "$file" ]; then
-        license_file=$(basename "$file")
+for file in "${license_files[@]}"; do
+    if [ -e "$working_folder/$file" ]; then
+        license_file=$(basename "$working_folder/$file")
         break  # Stop the loop once a file is found
     else
-        echo "$file does not exist."
+        echo "$working_folder/$file does not exist."
     fi
 done
 
@@ -483,9 +483,15 @@ for item in $md_list; do
 
 	# get data from the actual metadata file
 	nft_description=""
+
+	# Don't cut using a double-quote as a delimiter because we need to support double-quotes within the name & description.
 	nft_data=$(cat "$working_folder/metadata/$item" | jq .)
-	nft_name=$(echo $nft_data | jq '.name' | cut --fields 2 --delimiter=\")
-	nft_description=$(echo $nft_data | jq '.description' | cut --fields 2 --delimiter=\")
+	nft_name=$(echo $nft_data | jq '.name')
+	nft_name="${nft_name:1:-1}"
+
+	nft_description=$(echo $nft_data | jq '.description')
+	nft_description="${nft_description:1:-1}"
+
 	nft_format=$(echo $nft_data | jq '.format' | cut --fields 2 --delimiter=\")
 	nft_sensitive=$(echo $nft_data | jq '.sensitive_content')
 	nft_mint_tool=$(echo $nft_data | jq '.minting_tool' | cut --fields 2 --delimiter=\")
@@ -499,7 +505,7 @@ for item in $md_list; do
 	done < <(echo "$nft_attributes" | jq -c '.[]')
 
 	# find the nftid from mintgarden
-	nft_data=$(echo "$mg_nfts_json" | jq -r --arg name "$nft_name" '.[] | select(.data.metadata_json.name == $name)')
+	nft_data=$(echo "$mg_nfts_json" | jq -r --arg name "${nft_name:0:15}" '.[] | select(.data.metadata_json.name == $name)')
 	nft_id=$(echo "$nft_data" | jq -r '.encoded_id')
 	if [ -z "$nft_id" ]; then
 		burned=$true
@@ -585,6 +591,7 @@ for item in $md_list; do
 	((c++))
 
 	echo ""
+
 done
 
 # wrap up

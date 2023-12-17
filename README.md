@@ -51,3 +51,8 @@ Real Example:
 ```
 bash make_gallery.sh ./BattleKats/build
 ```
+
+---
+
+### Screenshot example
+![Creepers example](example.png "Creepers example")
