@@ -1,6 +1,8 @@
 # indexify
 Bash script to create a general purpose NFT Gallery for Datalayer NFT collection on the Chia Blockchain. _Or really any NFT collection in a source folder._
 
+Note: the script is slow. The more NFTs the longer it takes. But, it's also a run-once and done script so just be patient. I do write output to the screen to show progress along the way.
+
 ---
 
 ### Prerequisites
